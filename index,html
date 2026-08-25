@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spending log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#E9EEF3;
+    --card:#FFFFFF;
+    --ink:#16263D;
+    --ink-soft:#5D6E84;
+    --ink-faint:#8A99AB;
+    --rule:#CCD6E0;
+    --credit:#A62A57;
+    --credit-tint:#FBEAF0;
+    --cash:#0F7A6B;
+    --cash-tint:#E4F2EF;
+    --focus:#2B6CB0;
+    --radius:4px;
+    --pad:20px;
+    --sans:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    /* alias kept so every rule resolves to one family */
+    --mono:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;
+    padding:24px 16px 64px;
+  }
+  .wrap{max-width:680px;margin:0 auto}
+  #app[hidden]{display:none}
+
+  /* ---------- lock gate ---------- */
+  #gate{
+    position:fixed;inset:0;z-index:50;
+    background:var(--paper);
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  #gate[hidden]{display:none}
+  .gate-card{
+    width:100%;max-width:400px;background:var(--card);
+    border:1px solid var(--rule);padding:32px 26px;text-align:center;
+  }
+  .gate-mark{
+    width:46px;height:46px;margin:0 auto 20px;
+    border:2px solid var(--ink);border-radius:11px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .gate-mark svg{width:24px;height:24px}
+  .gate-card h2{
+    font-family:var(--sans);font-size:22px;font-weight:800;margin:0 0 8px;
+    letter-spacing:-0.02em;line-height:1.15;
+  }
+  .gate-card p{
+    font-size:14px;color:var(--ink-soft);margin:0 0 22px;line-height:1.5;
+  }
+  .gate-card p.small{
+    font-family:var(--sans);font-style:italic;font-size:12.5px;font-weight:500;letter-spacing:0;
+    color:var(--ink-faint);margin:17px 0 0;line-height:1.55;
+  }
+  .gate-card p.err{color:var(--credit)}
+  .btn{
+    width:100%;border:none;border-radius:var(--radius);
+    background:var(--ink);color:#fff;font-family:var(--sans);
+    font-size:13px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;
+    padding:15px;cursor:pointer;transition:background .15s ease;
+  }
+  .btn:hover{background:#0D1B2E}
+  .btn.ghost{
+    background:none;color:var(--ink-faint);border:1px solid var(--rule);
+    margin-top:10px;letter-spacing:0.12em;
+  }
+  .btn.ghost:hover{background:var(--paper);color:var(--ink)}
+
+  /* ---------- masthead ---------- */
+  .masthead{
+    display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+    padding-bottom:12px;border-bottom:2px solid var(--ink);margin-bottom:2px;
+  }
+  .masthead h1{font-family:var(--sans);font-size:24px;font-weight:800;letter-spacing:-0.02em;margin:0;line-height:1.1}
+  .masthead .ref{
+    font-family:var(--sans);font-size:11px;font-weight:600;letter-spacing:0.11em;
+    text-transform:uppercase;color:var(--ink-faint);white-space:nowrap;
+  }
+  .hairline{border-bottom:1px solid var(--rule);margin-bottom:20px}
+
+  /* ---------- stats ---------- */
+  .stats{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+    background:var(--rule);border:1px solid var(--rule);margin-bottom:22px;
+  }
+  .stat{background:var(--card);padding:12px 14px}
+  .stat dt{
+    font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:0.12em;
+    text-transform:uppercase;color:var(--ink-faint);margin:0 0 5px;
+  }
+  .stat dd{
+    margin:0;font-family:var(--sans);font-size:19px;font-weight:600;
+    font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;letter-spacing:-0.02em;
+  }
+  .stat.is-credit dd{color:var(--cash)}
+  .stat.is-credit.zero dd{color:var(--ink)}
+
+  /* ---------- form pad ---------- */
+  .pad{position:relative;margin-bottom:34px}
+  .perf{
+    height:9px;background:var(--card);
+    -webkit-mask-image:radial-gradient(circle at 5px 9px, transparent 4.2px, #000 4.6px);
+    mask-image:radial-gradient(circle at 5px 9px, transparent 4.2px, #000 4.6px);
+    -webkit-mask-size:10px 9px;mask-size:10px 9px;
+    -webkit-mask-repeat:repeat-x;mask-repeat:repeat-x;
+  }
+  form{background:var(--card);border:1px solid var(--rule);border-top:none;padding:var(--pad)}
+  .field{margin-bottom:16px}
+  .field:last-of-type{margin-bottom:0}
+  label{
+    display:block;font-family:var(--sans);font-size:11px;font-weight:600;
+    letter-spacing:0.13em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:7px;
+  }
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:520px){.row2{grid-template-columns:1fr}}
+
+  select,input[type="text"]{
+    width:100%;font-family:var(--sans);font-size:15px;color:var(--ink);
+    background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);
+    padding:10px 11px;appearance:none;
+  }
+  select{
+    background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235D6E84' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 12px center;padding-right:32px;
+  }
+  select:invalid{color:var(--ink-faint)}
+  input::placeholder{color:var(--ink-faint)}
+
+  .amount-line{
+    display:flex;align-items:stretch;border:1px solid var(--rule);
+    border-radius:var(--radius);overflow:hidden;
+  }
+  .amount-line .cur{
+    display:flex;align-items:center;padding:0 14px;background:var(--paper);
+    border-right:1px solid var(--rule);font-family:var(--sans);font-size:12px;
+    font-weight:600;letter-spacing:0.12em;color:var(--ink-soft);
+  }
+  #amount{
+    flex:1;min-width:0;border:none;outline:none;background:transparent;
+    font-family:var(--sans);font-size:32px;font-weight:600;
+    font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;
+    letter-spacing:-0.025em;text-align:right;
+    padding:7px 14px;color:var(--ink);-moz-appearance:textfield;
+  }
+  #amount::-webkit-outer-spin-button,#amount::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  #amount::placeholder{color:#D2DAE3}
+  .amount-line:focus-within{border-color:var(--focus);box-shadow:0 0 0 3px rgba(43,108,176,.14)}
+  select:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+
+  .log-btn{margin-top:20px}
+  .hint{
+    margin:11px 0 0;font-family:var(--sans);font-style:italic;font-size:13px;font-weight:500;
+    letter-spacing:0;color:var(--ink-faint);text-align:center;min-height:19px;
+  }
+  .hint.error{color:var(--credit)}
+
+  /* ---------- ledger ---------- */
+  .ledger-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+  .ledger-head h2{
+    font-family:var(--sans);font-size:11px;letter-spacing:0.16em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;margin:0;
+  }
+  .tools{display:flex;gap:15px;flex-wrap:wrap}
+  .tools button{
+    background:none;border:none;padding:0;cursor:pointer;font-family:var(--sans);
+    font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;
+    color:var(--ink-faint);border-bottom:1px solid transparent;
+  }
+  .tools button:hover{color:var(--ink);border-bottom-color:var(--rule)}
+  .tools button.lock{color:var(--ink-soft)}
+
+  .day{margin-bottom:22px}
+  .day-bar{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding-bottom:5px;border-bottom:1px solid var(--ink);
+  }
+  .day-bar .date{font-family:var(--sans);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;font-weight:600}
+  .day-bar .sum{font-family:var(--sans);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;color:var(--ink-soft)}
+
+  .entry{
+    display:grid;grid-template-columns:46px 1fr auto 22px;align-items:baseline;gap:10px;
+    padding:11px 10px 11px 12px;border-bottom:1px dotted var(--rule);background:var(--card);
+  }
+  .entry.fresh{animation:stamp .45s cubic-bezier(.2,.9,.3,1)}
+  @keyframes stamp{from{opacity:0;transform:translateY(-5px) scale(.99)}to{opacity:1;transform:none}}
+  .entry .time{font-family:var(--sans);font-size:11.5px;font-weight:500;color:var(--ink-faint);font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+  .entry .what{min-width:0}
+  .entry .details{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .entry .meta{display:flex;align-items:center;gap:7px;margin-top:3px;flex-wrap:wrap}
+  .chip{
+    font-family:var(--sans);font-size:10px;font-weight:600;letter-spacing:0.07em;
+    text-transform:uppercase;padding:2.5px 7px;border-radius:3px;
+    background:var(--paper);color:var(--ink-soft);white-space:nowrap;
+  }
+  .chip.credit{background:var(--credit-tint);color:var(--credit)}
+  .chip.cash{background:var(--cash-tint);color:var(--cash)}
+  .entry .amt{font-family:var(--sans);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;letter-spacing:-0.015em}
+  .entry .del{background:none;border:none;cursor:pointer;padding:0;font-size:15px;line-height:1;color:#C3CDD8}
+  .entry .del:hover{color:var(--credit)}
+
+  .empty{
+    background:var(--card);border:1px dashed var(--rule);padding:34px 20px;
+    text-align:center;color:var(--ink-soft);font-size:14px;
+  }
+
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(120%);
+    background:var(--ink);color:#fff;padding:11px 16px;border-radius:var(--radius);
+    display:flex;align-items:center;gap:16px;font-size:13px;
+    box-shadow:0 6px 22px rgba(22,38,61,.28);
+    transition:transform .25s cubic-bezier(.2,.9,.3,1);z-index:20;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  .toast button{
+    background:none;border:none;cursor:pointer;padding:0;color:#8FC4F5;
+    font-family:var(--sans);font-size:11.5px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;
+  }
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ============ LOCK GATE ============ -->
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#16263D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 8V6a2 2 0 0 1 2-2h2"/><path d="M16 4h2a2 2 0 0 1 2 2v2"/>
+        <path d="M20 16v2a2 2 0 0 1-2 2h-2"/><path d="M8 20H6a2 2 0 0 1-2-2v-2"/>
+        <path d="M9 10v1"/><path d="M15 10v1"/><path d="M12 10v4"/><path d="M9 16.5c1.8 1 4.2 1 6 0"/>
+      </svg>
+    </div>
+    <h2 id="gateTitle">Checking…</h2>
+    <p id="gateBody">One moment.</p>
+    <div id="gateActions"></div>
+    <p class="small" id="gateNote"></p>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="wrap" id="app" hidden>
+
+  <header class="masthead">
+    <h1>Spending log</h1>
+    <span class="ref" id="ref">—</span>
+  </header>
+  <div class="hairline"></div>
+
+  <dl class="stats">
+    <div class="stat"><dt>Today</dt><dd id="statToday">0.00</dd></div>
+    <div class="stat"><dt>This month</dt><dd id="statMonth">0.00</dd></div>
+    <div class="stat is-credit zero" id="statCreditBox"><dt>Debt paid, month</dt><dd id="statCredit">0.00</dd></div>
+  </dl>
+
+  <div class="pad">
+    <div class="perf"></div>
+    <form id="entryForm" autocomplete="off">
+      <div class="row2">
+        <div class="field">
+          <label for="from">From/ For</label>
+          <select id="from" required>
+            <option value="" disabled selected>Choose source</option>
+            <option>Cash</option>
+            <option>PayNow/ PayLah/ GrabPay</option>
+            <option>DBS</option>
+            <option>GXS</option>
+            <option>HSBC</option>
+            <option>OCBC</option>
+            <option>UOB</option>
+            <option>Trust</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="type">Type</label>
+          <select id="type" required>
+            <option value="" disabled selected>Choose type</option>
+            <option>Bills and utilities</option>
+            <option>Debt</option>
+            <option>Entertainment</option>
+            <option>Food and beverage</option>
+            <option>Groceries</option>
+            <option>Health and beauty</option>
+            <option>Shopping</option>
+            <option>Transport</option>
+            <option>Others</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="details">Details</label>
+        <input type="text" id="details" placeholder=" " maxlength="120">
+      </div>
+
+      <div class="field">
+        <label for="amount">Price</label>
+        <div class="amount-line">
+          <span class="cur">SGD</span>
+          <input type="number" id="amount" inputmode="decimal" step="0.01" min="0" placeholder="0.00" required>
+        </div>
+      </div>
+
+      <button type="submit" class="btn log-btn">Log it</button>
+      <p class="hint" id="hint">Time and date are stamped when you log.</p>
+    </form>
+  </div>
+
+  <section>
+    <div class="ledger-head">
+      <h2>Entries</h2>
+      <div class="tools">
+        <button type="button" id="lockBtn" class="lock">Lock now</button>
+        <button type="button" id="exportBtn">Export CSV</button>
+        <button type="button" id="lockSetupBtn" hidden>Add Face ID lock</button>
+        <button type="button" id="removeLockBtn" hidden>Remove lock</button>
+        <button type="button" id="clearBtn">Clear all</button>
+      </div>
+    </div>
+    <div id="ledger"></div>
+  </section>
+
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span id="toastMsg"></span>
+  <button type="button" id="undoBtn">Undo</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* =========================================================
+     Storage keys
+     ========================================================= */
+  var K_VAULT = "spendlog:vault";     // encrypted entries
+  var K_PLAIN = "spendlog:entries";   // unencrypted entries (no lock set)
+  var K_CRED  = "spendlog:cred";      // credential id + salt
+
+  var entries = [];
+  var cryptoKey = null;      // AES key derived from the passkey, when available
+  var credConfig = null;     // {credId, salt, prf}
+  var lastRemoved = null;
+  var toastTimer = null;
+
+  var money = new Intl.NumberFormat("en-SG",{minimumFractionDigits:2,maximumFractionDigits:2});
+  function el(id){ return document.getElementById(id); }
+
+  /* =========================================================
+     Low-level storage (artifact-native, else browser storage)
+     ========================================================= */
+  function readKey(key){
+    if (window.storage && window.storage.get){
+      return window.storage.get(key).then(function(r){ return r && r.value ? r.value : null; })
+        .catch(function(){ return null; });
+    }
+    try { return Promise.resolve(window.localStorage.getItem(key)); }
+    catch(e){ return Promise.resolve(null); }
+  }
+  function writeKey(key, value){
+    if (window.storage && window.storage.set){
+      return window.storage.set(key, value).catch(function(){});
+    }
+    try { window.localStorage.setItem(key, value); } catch(e){}
+    return Promise.resolve();
+  }
+  function deleteKey(key){
+    if (window.storage && window.storage.delete){
+      return window.storage.delete(key).catch(function(){});
+    }
+    try { window.localStorage.removeItem(key); } catch(e){}
+    return Promise.resolve();
+  }
+
+  /* =========================================================
+     Byte / base64 helpers
+     ========================================================= */
+  function b64(buf){
+    var bytes = new Uint8Array(buf), s = "";
+    for (var i=0;i<bytes.length;i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s);
+  }
+  function unb64(str){
+    var s = atob(str), bytes = new Uint8Array(s.length);
+    for (var i=0;i<s.length;i++) bytes[i] = s.charCodeAt(i);
+    return bytes;
+  }
+  function rand(n){ return crypto.getRandomValues(new Uint8Array(n)); }
+
+  /* =========================================================
+     Crypto: derive an AES key from the passkey's PRF output
+     ========================================================= */
+  function deriveKey(prfOutput){
+    return crypto.subtle.importKey("raw", prfOutput, "HKDF", false, ["deriveKey"])
+      .then(function(base){
+        return crypto.subtle.deriveKey(
+          { name:"HKDF", hash:"SHA-256", salt:new Uint8Array(32), info:new TextEncoder().encode("spendlog-vault") },
+          base,
+          { name:"AES-GCM", length:256 },
+          false,
+          ["encrypt","decrypt"]
+        );
+      });
+  }
+  function encryptEntries(data){
+    var iv = rand(12);
+    var plain = new TextEncoder().encode(JSON.stringify(data));
+    return crypto.subtle.encrypt({name:"AES-GCM", iv:iv}, cryptoKey, plain)
+      .then(function(ct){ return JSON.stringify({ iv:b64(iv), ct:b64(ct) }); });
+  }
+  function decryptVault(raw){
+    var parcel = JSON.parse(raw);
+    return crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(parcel.iv)}, cryptoKey, unb64(parcel.ct))
+      .then(function(plain){ return JSON.parse(new TextDecoder().decode(plain)); });
+  }
+
+  /* =========================================================
+     Persist entries — encrypted if we have a key, else plain
+     ========================================================= */
+  function persist(){
+    if (cryptoKey){
+      return encryptEntries(entries).then(function(blob){ return writeKey(K_VAULT, blob); });
+    }
+    return writeKey(K_PLAIN, JSON.stringify(entries));
+  }
+
+  /* =========================================================
+     WebAuthn
+     ========================================================= */
+  function webauthnUsable(){
+    if (!window.PublicKeyCredential || !window.isSecureContext) return Promise.resolve(false);
+    if (!PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) return Promise.resolve(false);
+    return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(function(){ return false; });
+  }
+
+  function createPasskey(){
+    var salt = rand(32);
+    return navigator.credentials.create({
+      publicKey:{
+        challenge: rand(32),
+        rp:{ name:"Spending log", id: location.hostname },
+        user:{ id: rand(16), name:"spending-log", displayName:"Spending log" },
+        pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],
+        authenticatorSelection:{
+          authenticatorAttachment:"platform",
+          userVerification:"required",
+          residentKey:"preferred"
+        },
+        timeout:60000,
+        attestation:"none",
+        extensions:{ prf:{ eval:{ first: salt } } }
+      }
+    }).then(function(cred){
+      var ext = cred.getClientExtensionResults();
+      var prfOk = !!(ext && ext.prf && ext.prf.enabled);
+      return { credId: b64(cred.rawId), salt: b64(salt), prf: prfOk };
+    });
+  }
+
+  function assertPasskey(config){
+    return navigator.credentials.get({
+      publicKey:{
+        challenge: rand(32),
+        rpId: location.hostname,
+        allowCredentials:[{ type:"public-key", id: unb64(config.credId) }],
+        userVerification:"required",
+        timeout:60000,
+        extensions: config.prf ? { prf:{ eval:{ first: unb64(config.salt) } } } : {}
+      }
+    }).then(function(assertion){
+      var ext = assertion.getClientExtensionResults();
+      var out = ext && ext.prf && ext.prf.results && ext.prf.results.first;
+      return out ? new Uint8Array(out) : null;
+    });
+  }
+
+  /* =========================================================
+     Gate UI
+     ========================================================= */
+  function gate(title, body, actions, note){
+    el("gateTitle").textContent = title;
+    el("gateBody").textContent = body;
+    el("gateBody").className = "";
+    var box = el("gateActions");
+    box.textContent = "";
+    (actions || []).forEach(function(a){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "btn" + (a.ghost ? " ghost" : "");
+      b.textContent = a.label;
+      b.addEventListener("click", a.onClick);
+      box.appendChild(b);
+    });
+    el("gateNote").textContent = note || "";
+  }
+  function gateError(msg){
+    el("gateBody").textContent = msg;
+    el("gateBody").className = "err";
+  }
+  function openApp(){
+    el("gate").hidden = true;
+    el("app").hidden = false;
+    el("lockBtn").hidden = !credConfig;
+    el("lockSetupBtn").hidden = !!credConfig;
+    el("removeLockBtn").hidden = !credConfig;
+    render();
+  }
+
+  /* =========================================================
+     Boot
+     ========================================================= */
+  function boot(){
+    readKey(K_CRED).then(function(raw){
+      credConfig = raw ? JSON.parse(raw) : null;
+      if (credConfig) return showLocked();
+      return webauthnUsable().then(function(ok){
+        if (ok) return offerSetup();
+        return loadPlain().then(function(){
+          openApp();
+          toast("Face ID unavailable here — see the note below.", false);
+        });
+      });
+    });
+  }
+
+  function loadPlain(){
+    return readKey(K_PLAIN).then(function(raw){
+      entries = raw ? JSON.parse(raw) : [];
+    }).catch(function(){ entries = []; });
+  }
+
+  function offerSetup(){
+    gate(
+      "Lock this log with Face ID",
+      "Your entries stay on this device. Face ID is the only way back in.",
+      [
+        { label:"Set up Face ID", onClick: runSetup },
+        { label:"Skip for now", ghost:true, onClick: function(){
+            loadPlain().then(openApp);
+        }}
+      ],
+      "You'll be prompted twice during setup — once to create the key, once to seal your data."
+    );
+  }
+
+  function runSetup(){
+    gate("Setting up…", "Follow the prompts on your device.", []);
+    loadPlain().then(function(){
+      return createPasskey();
+    }).then(function(config){
+      credConfig = config;
+      if (!config.prf){
+        // Passkey works as a gate, but this browser can't derive an encryption key from it.
+        return writeKey(K_CRED, JSON.stringify(config)).then(function(){
+          return persist();
+        }).then(function(){
+          openApp();
+          toast("Face ID lock on. Data is not encrypted on this browser.", false);
+        });
+      }
+      return assertPasskey(config).then(function(prfOut){
+        if (!prfOut) throw new Error("no-prf");
+        return deriveKey(prfOut);
+      }).then(function(key){
+        cryptoKey = key;
+        return persist();                 // write encrypted vault
+      }).then(function(){
+        return deleteKey(K_PLAIN);        // remove the plaintext copy
+      }).then(function(){
+        return writeKey(K_CRED, JSON.stringify(config));
+      }).then(function(){
+        openApp();
+        toast("Locked. Your entries are now encrypted.", false);
+      });
+    }).catch(function(err){
+      credConfig = null;
+      gate(
+        "Lock this log with Face ID",
+        "Your entries stay on this device. Face ID is the only way back in.",
+        [
+          { label:"Try again", onClick: runSetup },
+          { label:"Skip for now", ghost:true, onClick: function(){ loadPlain().then(openApp); } }
+        ],
+        ""
+      );
+      gateError("Setup didn't complete. " + (err && err.name === "NotAllowedError" ? "The prompt was cancelled or timed out." : "Try again."));
+    });
+  }
+
+  function showLocked(){
+    gate(
+      "Locked",
+      "Unlock with Face ID to see your spending log.",
+      [{ label:"Unlock", onClick: runUnlock }],
+      ""
+    );
+  }
+
+  function runUnlock(){
+    assertPasskey(credConfig).then(function(prfOut){
+      if (credConfig.prf && prfOut){
+        return deriveKey(prfOut).then(function(key){
+          cryptoKey = key;
+          return readKey(K_VAULT);
+        }).then(function(raw){
+          if (!raw){ entries = []; return; }
+          return decryptVault(raw).then(function(data){ entries = data; });
+        });
+      }
+      return loadPlain();
+    }).then(function(){
+      openApp();
+    }).catch(function(err){
+      showLocked();
+      gateError(err && err.name === "NotAllowedError"
+        ? "Face ID was cancelled or didn't match."
+        : "Couldn't unlock. Try again.");
+    });
+  }
+
+  function lockNow(){
+    cryptoKey = null;
+    entries = [];
+    el("app").hidden = true;
+    el("gate").hidden = false;
+    showLocked();
+  }
+
+  function removeLock(){
+    if (!window.confirm("Remove the Face ID lock? Your entries will be stored unencrypted on this device.")) return;
+    var snapshot = entries.slice();
+    writeKey(K_PLAIN, JSON.stringify(snapshot))
+      .then(function(){ return deleteKey(K_VAULT); })
+      .then(function(){ return deleteKey(K_CRED); })
+      .then(function(){
+        credConfig = null;
+        cryptoKey = null;
+        el("lockBtn").hidden = true;
+        el("removeLockBtn").hidden = true;
+        el("lockSetupBtn").hidden = false;
+        toast("Lock removed.", false);
+      });
+  }
+
+  /* =========================================================
+     Rendering
+     ========================================================= */
+  function dayKey(ts){
+    var d = new Date(ts);
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+  function dayLabel(ts){
+    var d = new Date(ts), now = new Date();
+    var full = d.toLocaleDateString("en-SG",{weekday:"short",day:"2-digit",month:"short",year:"numeric"});
+    if (d.toDateString() === now.toDateString()) return "Today · " + full;
+    if (new Date(now.getTime()-86400000).toDateString() === d.toDateString()) return "Yesterday · " + full;
+    return full;
+  }
+  function timeLabel(ts){
+    return new Date(ts).toLocaleTimeString("en-SG",{hour:"2-digit",minute:"2-digit",hour12:false});
+  }
+  function sourceClass(from){
+    return from === "Cash" ? "cash" : "";
+  }
+  function typeClass(type){
+    return type === "Debt" ? "credit" : "";
+  }
+
+  function renderStats(){
+    var now = new Date(), today = 0, month = 0, credit = 0;
+    entries.forEach(function(e){
+      var d = new Date(e.ts);
+      if (d.toDateString() === now.toDateString()) today += e.amount;
+      if (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()){
+        month += e.amount;
+        if (e.type === "Debt") credit += e.amount;
+      }
+    });
+    el("statToday").textContent = money.format(today);
+    el("statMonth").textContent = money.format(month);
+    el("statCredit").textContent = money.format(credit);
+    el("statCreditBox").classList.toggle("zero", credit === 0);
+  }
+
+  function renderLedger(freshId){
+    var box = el("ledger");
+    box.textContent = "";
+    if (!entries.length){
+      var empty = document.createElement("div");
+      empty.className = "empty";
+      empty.textContent = "Nothing logged yet. Add your first expense above.";
+      box.appendChild(empty);
+      return;
+    }
+    var groups = {}, order = [];
+    entries.slice().sort(function(a,b){ return b.ts - a.ts; }).forEach(function(e){
+      var k = dayKey(e.ts);
+      if (!groups[k]){ groups[k] = []; order.push(k); }
+      groups[k].push(e);
+    });
+    order.forEach(function(k){
+      var list = groups[k];
+      var total = list.reduce(function(s,e){ return s + e.amount; }, 0);
+      var day = document.createElement("div");
+      day.className = "day";
+      var bar = document.createElement("div");
+      bar.className = "day-bar";
+      var dt = document.createElement("span"); dt.className = "date"; dt.textContent = dayLabel(list[0].ts);
+      var sum = document.createElement("span"); sum.className = "sum"; sum.textContent = "S$" + money.format(total);
+      bar.appendChild(dt); bar.appendChild(sum);
+      day.appendChild(bar);
+
+      list.forEach(function(e){
+        var row = document.createElement("div");
+        row.className = "entry" + (e.id === freshId ? " fresh" : "");
+        var time = document.createElement("span"); time.className = "time"; time.textContent = timeLabel(e.ts);
+        var what = document.createElement("div"); what.className = "what";
+        var det = document.createElement("div"); det.className = "details"; det.textContent = e.details || e.type;
+        var meta = document.createElement("div"); meta.className = "meta";
+        var c1 = document.createElement("span"); c1.className = "chip " + sourceClass(e.from); c1.textContent = e.from;
+        var c2 = document.createElement("span"); c2.className = "chip " + typeClass(e.type); c2.textContent = e.type;
+        meta.appendChild(c1); meta.appendChild(c2);
+        what.appendChild(det); what.appendChild(meta);
+        var amt = document.createElement("span"); amt.className = "amt"; amt.textContent = money.format(e.amount);
+        var del = document.createElement("button");
+        del.type = "button"; del.className = "del"; del.setAttribute("aria-label","Delete this entry");
+        del.textContent = "\u00D7";
+        del.addEventListener("click", function(){ remove(e.id); });
+        row.appendChild(time); row.appendChild(what); row.appendChild(amt); row.appendChild(del);
+        day.appendChild(row);
+      });
+      box.appendChild(day);
+    });
+  }
+
+  function render(freshId){
+    renderStats();
+    renderLedger(freshId);
+    el("ref").textContent = entries.length + (entries.length === 1 ? " entry" : " entries");
+  }
+
+  /* =========================================================
+     Toast
+     ========================================================= */
+  function toast(msg, undoable){
+    el("toastMsg").textContent = msg;
+    el("undoBtn").style.display = undoable ? "" : "none";
+    el("toast").classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){
+      el("toast").classList.remove("show");
+      lastRemoved = null;
+    }, 6000);
+  }
+
+  /* =========================================================
+     Entry actions
+     ========================================================= */
+  function add(ev){
+    ev.preventDefault();
+    var from = el("from").value, type = el("type").value;
+    var details = el("details").value.trim();
+    var amount = parseFloat(el("amount").value);
+    var hint = el("hint");
+
+    if (!from || !type){
+      hint.textContent = "Pick a source and a type first.";
+      hint.classList.add("error");
+      return;
+    }
+    if (!isFinite(amount) || amount <= 0){
+      hint.textContent = "Enter an amount greater than zero.";
+      hint.classList.add("error");
+      el("amount").focus();
+      return;
+    }
+
+    var entry = {
+      id: String(Date.now()) + Math.random().toString(36).slice(2,7),
+      ts: Date.now(),
+      from: from, type: type, details: details,
+      amount: Math.round(amount * 100) / 100
+    };
+    entries.push(entry);
+    persist();
+
+    hint.classList.remove("error");
+    hint.textContent = "Logged at " + timeLabel(entry.ts) + ".";
+    el("details").value = "";
+    el("amount").value = "";
+    render(entry.id);
+    el("amount").focus();
+  }
+
+  function remove(id){
+    var i = entries.findIndex(function(e){ return e.id === id; });
+    if (i === -1) return;
+    lastRemoved = entries.splice(i,1)[0];
+    persist();
+    render();
+    toast("Entry deleted.", true);
+  }
+
+  function undo(){
+    if (!lastRemoved) return;
+    entries.push(lastRemoved);
+    persist();
+    render(lastRemoved.id);
+    lastRemoved = null;
+    el("toast").classList.remove("show");
+  }
+
+  function exportCsv(){
+    if (!entries.length){ toast("Nothing to export yet.", false); return; }
+    var rows = [["Date","Time","From","Type","Details","Amount (SGD)"]];
+    entries.slice().sort(function(a,b){ return a.ts - b.ts; }).forEach(function(e){
+      rows.push([dayKey(e.ts), timeLabel(e.ts), e.from, e.type, e.details, e.amount.toFixed(2)]);
+    });
+    var csv = rows.map(function(r){
+      return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
+    }).join("\n");
+    var blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "spending-log-" + dayKey(Date.now()) + ".csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function clearAll(){
+    if (!entries.length) return;
+    if (!window.confirm("Delete all " + entries.length + " entries? This cannot be undone.")) return;
+    entries = [];
+    persist();
+    render();
+    toast("All entries cleared.", false);
+  }
+
+  /* =========================================================
+     Wiring
+     ========================================================= */
+  el("entryForm").addEventListener("submit", add);
+  el("exportBtn").addEventListener("click", exportCsv);
+  el("clearBtn").addEventListener("click", clearAll);
+  el("undoBtn").addEventListener("click", undo);
+  el("lockBtn").addEventListener("click", lockNow);
+  el("removeLockBtn").addEventListener("click", removeLock);
+  el("lockSetupBtn").addEventListener("click", function(){
+    el("app").hidden = true;
+    el("gate").hidden = false;
+    offerSetup();
+  });
+
+  el("amount").addEventListener("keydown", function(ev){
+    if (["e","E","+","-"].indexOf(ev.key) !== -1) ev.preventDefault();
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
